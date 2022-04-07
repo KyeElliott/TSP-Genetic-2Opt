@@ -429,8 +429,19 @@ class TSPSolver:
 
 		route.append(first_city)
 
-		for i in range(len(route)):
-			genome.append(route[i]._index)
+		if (len(route) != ncities + 1):
+			genome = []
+			genome.append(0)
+			city_permutation = np.random.permutation(np.arange(1, ncities))
+			
+			for i in range(len(city_permutation)):
+				genome.append(city_permutation[i])
+
+			genome.append(0)
+
+		else:
+			for i in range(len(route)):
+				genome.append(route[i]._index)
 
 		return genome
 
@@ -460,75 +471,84 @@ class TSPSolver:
 
 	#O(n) - dominated by get_fitness_level function and looping through subgenomeB to find the missing cities
 	def crossover(self, parent1, parent2, cities, ncities):
-		genes = []
-		map = {}
+		#genes = []
+		#map = {}
 
-		rand_index1 = random.randint(1, len(parent1.genome) - 2)
-		rand_index2 = random.randint(1, len(parent1.genome) - 2)
+		#solution = np.inf
 
-		crossover_point1 = min(rand_index1, rand_index2)
-		crossover_point2 = max(rand_index1, rand_index2)
+		#while solution == np.inf:
+			#rand_index1 = random.randint(1, len(parent1.genome) - 2)
+			#rand_index2 = random.randint(1, len(parent1.genome) - 2)
 
-		genes = copy.deepcopy(parent1.genome)
+			#crossover_point1 = min(rand_index1, rand_index2)
+			#crossover_point2 = max(rand_index1, rand_index2)
 
-		for i in range(len(genes)):
-			map[genes[i]] = i
+			#genes = copy.deepcopy(parent1.genome)
 
-		for i in range(crossover_point1, crossover_point2 + 1):
-			value = parent2.genome[i]
-			t = genes[map[value]]
-			genes[map[value]] = genes[i]
-			genes[i] = t
-			t = map[genes[map[value]]]
-			map[genes[map[value]]] = map[genes[i]]
-			map[genes[i]] = t
+			#for i in range(len(genes)):
+				#map[genes[i]] = i
 
-		child = self.Individual()
-		child.genome = genes
-		child.fitness = self.get_fitness_level(cities, ncities, child.genome)
-		return child
+			#for i in range(crossover_point1, crossover_point2 + 1):
+				#value = parent2.genome[i]
+				#t = genes[map[value]]
+				#genes[map[value]] = genes[i]
+				#genes[i] = t
+				#t = map[genes[map[value]]]
+				#map[genes[map[value]]] = map[genes[i]]
+				#map[genes[i]] = t
+
+			#solution = self.get_fitness_level(cities, ncities, genes)
+
+		#child = self.Individual()
+		#child.genome = genes
+		#child.fitness = self.get_fitness_level(cities, ncities, child.genome)
+		#return child
 
 		
 		#DO BETTER CROSSOVERS - DON'T WANT INF ROUTES
-		#new_genome = []
-		#subgenomeA = []
-		#subgenomeB = []
+		new_genome = []
+		subgenomeA = []
+		subgenomeB = []
 
-		#geneAIndex = np.random.randint(1, len(parent1.genome) - 1)
-		#geneBIndex = np.random.randint(1, len(parent1.genome) - 1)
+		geneAIndex = np.random.randint(1, len(parent1.genome) - 1)
+		geneBIndex = np.random.randint(1, len(parent1.genome) - 1)
 
-		#start_index = min(geneAIndex, geneBIndex)
-		#end_index = max(geneAIndex, geneBIndex)
+		start_index = min(geneAIndex, geneBIndex)
+		end_index = max(geneAIndex, geneBIndex)
 
-		#subgenomeA.append(cities[0]._index)
+		subgenomeA.append(cities[0]._index)
 
-		#for i in range(start_index, end_index):
-		#	subgenomeA.append(parent1.genome[i])
+		for i in range(start_index, end_index):
+			subgenomeA.append(parent1.genome[i])
 
-		#subgenomeB = [item for item in parent1.genome if item not in subgenomeA]
+		subgenomeB = [item for item in parent1.genome if item not in subgenomeA]
 
-		#subgenomeB.append(cities[0]._index)
+		subgenomeB.append(cities[0]._index)
 
-		#new_genome = subgenomeA + subgenomeB
+		new_genome = subgenomeA + subgenomeB
 
-		#child = self.Individual()
-		#child.genome = new_genome
-		#child.fitness = self.get_fitness_level(cities, ncities, new_genome)
-		#return child
+		child = self.Individual()
+		child.genome = new_genome
+		child.fitness = self.get_fitness_level(cities, ncities, new_genome)
+		return child
 
 	#O(1) - since all we end up doing is swapping the indexes of two cities in a genome
 	def mutate(self, genome, mutation_rate, ncities):
-		#DO BETTER MUTATIONS - DON'T WANT INF ROUTES
 		if (random.random() < mutation_rate):
-			position1 = np.random.randint(1, len(genome) - 2)
-			position2 = np.random.randint(position1 + 1, len(genome) - 1)
+			index1 = random.randint(0, len(genome) - 2)
+			index2 = random.randint(index1, len(genome) - 1)
 
-			genome[position1], genome[position2] = genome[position2], genome[position1]
+			chromosome_sequence = genome[index1:index2]
+			chromosome_sequence.reverse()
+
+			genome = genome[0:index1] + chromosome_sequence + genome[index2:]
 
 			return genome
-
 		else:
 			return genome
+	
+	def converged(self, population):
+		return all(genome.fitness == population[0].fitness for genome in population)
 
 	#Time Complexity: 
 	def fancy(self,time_allowance=60.0):
@@ -541,8 +561,11 @@ class TSPSolver:
 		heapq.heapify(population)
 
 		population_size = 100
-		num_generations = 100
-		mutation_rate = .1
+		num_generations = 5
+		mutation_rate = .2
+		elitism_rate = .05
+
+		elitism_offset = math.ceil(population_size * elitism_rate)
 
 		generations_so_far = 0
 
@@ -564,51 +587,69 @@ class TSPSolver:
 		for i in range(start_index, population_size):
 			new_individual = self.Individual()
 			new_individual.genome = self.create_genome(cities, ncities)
+			print(new_individual.genome)
+			print(" | ")
 			new_individual.fitness = self.get_fitness_level(cities, ncities, new_individual.genome)
 			heapq.heappush(population, new_individual)
 				
-		while time.time() - start_time < time_allowance and generations_so_far < num_generations:
+		while generations_so_far < num_generations:#time.time() - start_time < time_allowance and generations_so_far < num_generations:
 			for generation in range(num_generations):
 				if population[0].fitness < best_fitness_so_far:
-					solution = []
-
-					for i in range(len(population[0].genome) - 1):
-						solution.append(cities[population[0].genome[i]])
-
-					bssf = TSPSolution(solution)
-					best_fitness_so_far = bssf.cost
+					solution = population[0].genome
+					best_route_so_far = solution
+					best_fitness_so_far = self.get_fitness_level(cities, ncities, solution)
 
 				new_population = []
 				heapq.heapify(new_population)
 
-				for i in range(0, len(population)):
-					if (time.time() - start_time >= time_allowance):
-							end_time = time.time()
-							results['cost'] = bssf.cost
-							results['time'] = end_time - start_time
-							results['soln'] = bssf
-							results['count'] = 1
-							results['max'] = None
-							results['total'] = None
-							results['pruned'] = None
-							return results
+				elites = heapq.nsmallest(elitism_offset, population)
+
+				for i in range(0, elitism_offset):
+					heapq.heappush(new_population, elites[i])
+
+				for i in range(elitism_offset, len(population)):
+					#if (time.time() - start_time >= time_allowance):
+							#route = []
+
+							#for i in range(len(solution) - 1):
+							#	route.append(cities[solution[i]])
+							#	bssf = TSPSolution(route)
+
+							#end_time = time.time()
+							#results['cost'] = bssf.cost
+							#results['time'] = end_time - start_time
+							#results['soln'] = bssf
+							#results['count'] = 1
+							#results['max'] = None
+							#results['total'] = None
+							#results['pruned'] = None
+							#return results
 
 					#CROSSOVER
 					parent1 = self.tournament_selection(population)
 					parent2 = self.tournament_selection(population)
 					child = self.crossover(parent1, parent2, cities, ncities)
 					heapq.heappush(new_population, child)
-		
-					#MUTATE
-					#population[i].genome = self.mutate(population[i].genome, mutation_rate, ncities)
-					#heapq.heappush(new_population, population[i])
 
-				new_population = new_population[:population_size]
-				population = new_population
+					#MUTATE
+					population[i].genome = self.mutate(population[i].genome, mutation_rate, ncities)
+					heapq.heappush(new_population, population[i])
+		
+				population = heapq.nsmallest(population_size, new_population)
 				generations_so_far += 1
 
+				if self.converged(population):
+					generations_so_far = num_generations
+					break
+
+		route = []
+		
+		for i in range(len(solution) - 1):
+			route.append(cities[solution[i]])
+
+		bssf = TSPSolution(route)
 		end_time = time.time()
-		results['cost'] = bssf.cost
+		results['cost'] = best_fitness_so_far
 		results['time'] = end_time - start_time
 		results['soln'] = bssf
 		results['count'] = 1
