@@ -471,33 +471,31 @@ class TSPSolver:
 
 	#O(n) - dominated by get_fitness_level function and looping through subgenomeB to find the missing cities
 	def crossover(self, parent1, parent2, cities, ncities):
-		#genes = []
-		#map = {}
+		genes = []
+		map = {}
 
-		#solution = np.inf
+		if (parent1.genome[0] != parent2.genome[0]):
+			return parent1
+	
+		#rand_index1 = random.randint(1, len(parent1.genome) - 2)
+		#rand_index2 = random.randint(1, len(parent1.genome) - 2)
 
-		#while solution == np.inf:
-			#rand_index1 = random.randint(1, len(parent1.genome) - 2)
-			#rand_index2 = random.randint(1, len(parent1.genome) - 2)
+		#crossover_point1 = min(rand_index1, rand_index2)
+		#crossover_point2 = max(rand_index1, rand_index2)
 
-			#crossover_point1 = min(rand_index1, rand_index2)
-			#crossover_point2 = max(rand_index1, rand_index2)
+		#genes = copy.deepcopy(parent1.genome)
 
-			#genes = copy.deepcopy(parent1.genome)
+		#for i in range(len(genes)):
+		#	map[genes[i]] = i
 
-			#for i in range(len(genes)):
-				#map[genes[i]] = i
-
-			#for i in range(crossover_point1, crossover_point2 + 1):
-				#value = parent2.genome[i]
-				#t = genes[map[value]]
-				#genes[map[value]] = genes[i]
-				#genes[i] = t
-				#t = map[genes[map[value]]]
-				#map[genes[map[value]]] = map[genes[i]]
-				#map[genes[i]] = t
-
-			#solution = self.get_fitness_level(cities, ncities, genes)
+		#for i in range(crossover_point1, crossover_point2 + 1):
+		#	value = parent2.genome[i]
+		#	t = genes[map[value]]
+		#	genes[map[value]] = genes[i]
+		#	genes[i] = t
+		#	t = map[genes[map[value]]]
+		#	map[genes[map[value]]] = map[genes[i]]
+		#	map[genes[i]] = t
 
 		#child = self.Individual()
 		#child.genome = genes
@@ -561,7 +559,7 @@ class TSPSolver:
 		heapq.heapify(population)
 
 		population_size = 100
-		num_generations = 5
+		num_generations = 100
 		mutation_rate = .2
 		elitism_rate = .05
 
@@ -587,8 +585,6 @@ class TSPSolver:
 		for i in range(start_index, population_size):
 			new_individual = self.Individual()
 			new_individual.genome = self.create_genome(cities, ncities)
-			print(new_individual.genome)
-			print(" | ")
 			new_individual.fitness = self.get_fitness_level(cities, ncities, new_individual.genome)
 			heapq.heappush(population, new_individual)
 				
@@ -649,7 +645,7 @@ class TSPSolver:
 
 		bssf = TSPSolution(route)
 		end_time = time.time()
-		results['cost'] = best_fitness_so_far
+		results['cost'] = bssf.cost
 		results['time'] = end_time - start_time
 		results['soln'] = bssf
 		results['count'] = 1
