@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 
+from asyncio.windows_utils import Popen
 from functools import reduce
+from multiprocessing.pool import INIT
 from pdb import post_mortem
 from queue import PriorityQueue
 from typing import MutableSet
@@ -139,11 +141,6 @@ class TSPSolver:
 						if dest_city.costTo(first_city) < float('inf'):
 							route.append(current_city)
 							foundTour = True
-
-							#Used later for fancy algorithm
-							self.greedy_route = copy.deepcopy(route)
-							self.greedy_route.append(first_city)
-
 							count += 1
 							break
 
@@ -359,178 +356,34 @@ class TSPSolver:
 		algorithm</returns>
 	'''
 
-	class Individual:
-		def __init__(self):
-			self.genome = []
-			self.fitness = 0
-		
-
-		def __lt__(self, rhs):
-			if (self.fitness < rhs.fitness):
-				return True
-			else:
-				return False
-
-	def create_genome(self, cities, ncities):
-		genome = []
-
-		current_city_index = 0
-		foundTour = False
-
-		while not foundTour and current_city_index != ncities:
-			cities_not_visited = []
-
-			for i in range(ncities):
-				cities_not_visited.append(cities[i])
-
-			route = []
-
-			current_city = cities_not_visited.pop(current_city_index)
-			first_city = current_city
-			current_city_index += 1
-
-			route.append(first_city)
-
-			while len(cities_not_visited) > 0:
-				potential_edges = []
-				edge_indexes = []
-
-				dest_city = None
-				index = -1
-
-				for i in range(len(cities_not_visited)):
-					if current_city.costTo(cities_not_visited[i]) < np.inf:
-						potential_edges.append(cities_not_visited[i])
-						edge_indexes.append(i)
-
-				if (len(potential_edges) == 0):
-					break
-				
-				rand = random.randint(0, len(potential_edges) - 1)
-				dest_city = potential_edges[rand]
-				cities_not_visited.pop(edge_indexes[rand])
-
-				if dest_city is not None:
-					current_city = dest_city
-
-					if len(cities_not_visited) == 0:
-						if dest_city.costTo(first_city) < np.inf:
-							route.append(current_city)
-							foundTour = True
-							break
-
-						else: 
-							break
-
-					route.append(current_city)
-
-				else:
-					break
-
-		route.append(first_city)
-
-		if (len(route) != ncities + 1):
-			genome = []
-			genome.append(0)
-			city_permutation = np.random.permutation(np.arange(1, ncities))
-			
-			for i in range(len(city_permutation)):
-				genome.append(city_permutation[i])
-
-			genome.append(0)
-
-		else:
-			for i in range(len(route)):
-				genome.append(route[i]._index)
-
-		return genome
-
-	#Time Complexity: O(n)
-	#Since we have to loop through all of the cities in order to find the total cost
-	def get_fitness_level(self, cities, ncities, genome):
-		cost = 0
-
-		for i in range(1, ncities + 1):
-			cost += cities[genome[i - 1]].costTo(cities[genome[i]])
-
-		return cost
-
-	#O(1) - dominating term are min() and max() functions
-	#Since we know that only two challengers will get picked each time, function is in constant time
-	def tournament_selection(self, population):
-		#Probability of choosing the parent with the higher fitness value - 75%
-		p = .5
-
-		challengers = np.random.choice(population, size=2)
-
-		if (random.random() < p):
-			return min(challengers, key=lambda x: x.fitness)
-		
-		else:
-			return max(challengers, key=lambda x: x.fitness)
-
-	#O(n) - dominated by get_fitness_level function and looping through subgenomeB to find the missing cities
+	#O(n)
 	def crossover(self, parent1, parent2, cities, ncities):
 		genes = []
 		map = {}
 
-		if (parent1.genome[0] != parent2.genome[0]):
-			return parent1
-	
-		#rand_index1 = random.randint(1, len(parent1.genome) - 2)
-		#rand_index2 = random.randint(1, len(parent1.genome) - 2)
+		rand_index1 = random.randint(1, len(parent1) - 2)
+		rand_index2 = random.randint(1, len(parent1) - 2)
 
-		#crossover_point1 = min(rand_index1, rand_index2)
-		#crossover_point2 = max(rand_index1, rand_index2)
+		crossover_point1 = min(rand_index1, rand_index2)
+		crossover_point2 = max(rand_index1, rand_index2)
 
-		#genes = copy.deepcopy(parent1.genome)
+		genes = copy.deepcopy(parent1)
 
-		#for i in range(len(genes)):
-		#	map[genes[i]] = i
+		for i in range(len(genes)):
+			map[genes[i]] = i
 
-		#for i in range(crossover_point1, crossover_point2 + 1):
-		#	value = parent2.genome[i]
-		#	t = genes[map[value]]
-		#	genes[map[value]] = genes[i]
-		#	genes[i] = t
-		#	t = map[genes[map[value]]]
-		#	map[genes[map[value]]] = map[genes[i]]
-		#	map[genes[i]] = t
+		for i in range(crossover_point1, crossover_point2 + 1):
+			value = parent2[i]
+			t = genes[map[value]]
+			genes[map[value]] = genes[i]
+			genes[i] = t
+			t = map[genes[map[value]]]
+			map[genes[map[value]]] = map[genes[i]]
+			map[genes[i]] = t
 
-		#child = self.Individual()
-		#child.genome = genes
-		#child.fitness = self.get_fitness_level(cities, ncities, child.genome)
-		#return child
+		return genes
 
-		
-		#DO BETTER CROSSOVERS - DON'T WANT INF ROUTES
-		new_genome = []
-		subgenomeA = []
-		subgenomeB = []
-
-		geneAIndex = np.random.randint(1, len(parent1.genome) - 1)
-		geneBIndex = np.random.randint(1, len(parent1.genome) - 1)
-
-		start_index = min(geneAIndex, geneBIndex)
-		end_index = max(geneAIndex, geneBIndex)
-
-		subgenomeA.append(cities[0]._index)
-
-		for i in range(start_index, end_index):
-			subgenomeA.append(parent1.genome[i])
-
-		subgenomeB = [item for item in parent1.genome if item not in subgenomeA]
-
-		subgenomeB.append(cities[0]._index)
-
-		new_genome = subgenomeA + subgenomeB
-
-		child = self.Individual()
-		child.genome = new_genome
-		child.fitness = self.get_fitness_level(cities, ncities, new_genome)
-		return child
-
-	#O(1) - since all we end up doing is swapping the indexes of two cities in a genome
+	#O(n) - since we may potentially have to reverse all of the cities in a given tour
 	def mutate(self, genome, mutation_rate, ncities):
 		if (random.random() < mutation_rate):
 			index1 = random.randint(0, len(genome) - 2)
@@ -544,114 +397,160 @@ class TSPSolver:
 			return genome
 		else:
 			return genome
-	
-	def converged(self, population):
-		return all(genome.fitness == population[0].fitness for genome in population)
 
-	#Time Complexity: 
-	def fancy(self,time_allowance=60.0):
+	#O(1) - we just compare two routes in the population each time
+	def tournament_selection(self, population, distance_matrix):
+		p = .5
+
+		challenger1 = population[random.randint(0, len(population) - 1)]
+		challenger2 = population[random.randint(0, len(population) - 1)]
+
+		if (random.random() < p):
+			if (self.cost(distance_matrix, challenger1) < self.cost(distance_matrix, challenger2)):
+				return challenger1
+			
+			else:
+				return challenger2
+		
+		else:
+			if (self.cost(distance_matrix, challenger1) > self.cost(distance_matrix, challenger2)):
+				return challenger1
+			
+			else:
+				return challenger2
+	
+	def cost(self, distance_matrix, route):
+		return distance_matrix[np.roll(route, 1), route].sum()
+
+	#O(n^2) for each iteration
+	def two_opt(self, distance_matrix, route):
+		best = route
+		improved = True
+
+		while improved:
+			improved = False
+
+			for i in range(1, len(route) - 2):
+				for j in range(i + 1, len(route)):
+					if j - 1 == 1: continue
+
+					new_route = route[:]
+					new_route[i:j] = route[j - 1:i - 1:-1]
+
+					if self.cost(distance_matrix, new_route) < self.cost(distance_matrix, best):
+						best = new_route
+						improved = True
+						route = best
+
+		return best
+
+	#Total time complexity is O(population_size * num_generations * n^2) -> O(n^2) although depending on the parameters we could have large constant factors
+	def fancy(self, time_allowance=60):
 		results = {}
-		start_time = time.time()
 		cities = self._scenario.getCities()
 		ncities = len(cities)
+		greedy = self.greedy(time_allowance)['soln'].route
+		start_time = time.time()
 
 		population = []
 		heapq.heapify(population)
 
-		population_size = 100
-		num_generations = 100
-		mutation_rate = .2
-		elitism_rate = .05
-
-		elitism_offset = math.ceil(population_size * elitism_rate)
-
+		population_size = 10
+		num_generations = 10
 		generations_so_far = 0
+	
+		best_cost_so_far = np.inf
+		best_solution_so_far = []
 
-		start_index = 0
-		best_fitness_so_far = np.inf
+		distance_matrix = np.zeros((ncities, ncities))
 
-		self.greedy(time_allowance=60)
+		#Creating the initial reduced matrix
+		for i in range(ncities):
+			for j in range(ncities):
+				distance_matrix[i][j] = cities[i].costTo(cities[j])
 
-		if (self.greedy_route != None):
-			start_index = 1
-			greedy_individual = self.Individual()
+		#Putting the greedy route in the population first
+		greedy_route = []
 
-			for i in range(len(self.greedy_route)):		
-				greedy_individual.genome.append(self.greedy_route[i]._index)
+		for i in range(len(greedy)):
+			greedy_route.append(greedy[i]._index)
 
-			greedy_individual.fitness = self.get_fitness_level(cities, ncities, greedy_individual.genome)
-			heapq.heappush(population, greedy_individual)
+		heapq.heappush(population, greedy_route)
 
-		for i in range(start_index, population_size):
-			new_individual = self.Individual()
-			new_individual.genome = self.create_genome(cities, ncities)
-			new_individual.fitness = self.get_fitness_level(cities, ncities, new_individual.genome)
-			heapq.heappush(population, new_individual)
-				
-		while generations_so_far < num_generations:#time.time() - start_time < time_allowance and generations_so_far < num_generations:
-			for generation in range(num_generations):
-				if population[0].fitness < best_fitness_so_far:
-					solution = population[0].genome
-					best_route_so_far = solution
-					best_fitness_so_far = self.get_fitness_level(cities, ncities, solution)
+		#if ncities > 50:
+		#	final_route = []
 
-				new_population = []
-				heapq.heapify(new_population)
+		#	best = self.two_opt(distance_matrix, greedy_route)	
 
-				elites = heapq.nsmallest(elitism_offset, population)
+		#	for i in range(len(best)):
+		#		final_route.append(cities[best[i]])
 
-				for i in range(0, elitism_offset):
-					heapq.heappush(new_population, elites[i])
+		#	bssf = TSPSolution(final_route)
 
-				for i in range(elitism_offset, len(population)):
-					#if (time.time() - start_time >= time_allowance):
-							#route = []
+		#	end_time = time.time()
+		#	results['cost'] = bssf.cost
+		#	results['time'] = end_time - start_time
+		#	results['count'] = 1
+		#	results['soln'] = bssf
+		#	return results
 
-							#for i in range(len(solution) - 1):
-							#	route.append(cities[solution[i]])
-							#	bssf = TSPSolution(route)
+		#Mutating the greedy route to get part of our initial population
+		for i in range(1, population_size):
+			new_route = self.mutate(greedy_route, 1, ncities)
+			heapq.heappush(population, new_route)
 
-							#end_time = time.time()
-							#results['cost'] = bssf.cost
-							#results['time'] = end_time - start_time
-							#results['soln'] = bssf
-							#results['count'] = 1
-							#results['max'] = None
-							#results['total'] = None
-							#results['pruned'] = None
-							#return results
+		#Doing crossovers to get the other part of our initial population
+		for i in range(population_size):
+			parent1 = self.tournament_selection(population, distance_matrix)
+			parent2 = self.tournament_selection(population, distance_matrix)
+			child = self.crossover(parent1, parent2, cities, ncities)
+			heapq.heappush(population, new_route)
 
-					#CROSSOVER
-					parent1 = self.tournament_selection(population)
-					parent2 = self.tournament_selection(population)
-					child = self.crossover(parent1, parent2, cities, ncities)
-					heapq.heappush(new_population, child)
+		#While we haven't hit the max number of generations
+		while generations_so_far != num_generations and time.time() - start_time < time_allowance:
+			new_population = []
+			heapq.heapify(new_population)
 
-					#MUTATE
-					population[i].genome = self.mutate(population[i].genome, mutation_rate, ncities)
-					heapq.heappush(new_population, population[i])
-		
-				population = heapq.nsmallest(population_size, new_population)
-				generations_so_far += 1
+			#First run 2-opt on every route in the population to see if we can find an improvement
+			for i in range(population_size):
+				solution = []
 
-				if self.converged(population):
-					generations_so_far = num_generations
+				best = self.two_opt(distance_matrix, population[i])	
+
+				if (self.cost(distance_matrix, best) < best_cost_so_far):
+					best_solution_so_far = best
+					best_cost_so_far = self.cost(distance_matrix, best)
+
+				if time.time() - start_time < time_allowance:
+					num_generations = generations_so_far
 					break
 
-		route = []
-		
-		for i in range(len(solution) - 1):
-			route.append(cities[solution[i]])
+			#Do mutations and add them to the new population
+			for j in range(1, population_size):
+				new_route = self.mutate(population[i], 1, ncities)
+				heapq.heappush(new_population, new_route)
 
-		bssf = TSPSolution(route)
+			#Do crossovers and add them to the new population
+			for j in range(population_size):
+				parent1 = self.tournament_selection(population, distance_matrix)
+				parent2 = self.tournament_selection(population, distance_matrix)
+				child = self.crossover(parent1, parent2, cities, ncities)
+				heapq.heappush(new_population, new_route)
+
+			#The population becomes the best results from the new population that we just generated
+			population = heapq.nsmallest(population_size, new_population)
+			generations_so_far += 1
+		
+		final_route = []
+
+		for i in range(len(best_solution_so_far)):
+			final_route.append(cities[best_solution_so_far[i]])
+
+		bssf = TSPSolution(final_route)
+
 		end_time = time.time()
 		results['cost'] = bssf.cost
 		results['time'] = end_time - start_time
-		results['soln'] = bssf
 		results['count'] = 1
-		results['max'] = None
-		results['total'] = None
-		results['pruned'] = None
+		results['soln'] = bssf
 		return results
-
-
